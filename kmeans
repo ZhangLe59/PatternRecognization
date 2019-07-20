@@ -1,0 +1,105 @@
+#import Packages
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Read in your data
+
+#data = pd.read_excel('BirthDeathRates.xlsx',sheet_name = "Sheet1")
+data = pd.read_excel('restaurant.xlsx',sheet_name = "restaurant")
+datanew = data.drop('numbeOfReviews' , axis='columns')
+datanew = datanew.drop('phone',axis='columns')
+datanew = datanew.drop('restauranLink',axis='columns')
+datanew = datanew.drop('restaurantName',axis='columns')
+datanew = datanew.drop('address',axis='columns')
+datanew = datanew.drop('label',axis='columns')
+datanew = datanew.drop('_id' , axis='columns')
+datanew['ranking'].str.split(' ', n=1, expand=True)[0].str.replace('#',' ').str.replace(',','')
+def convert(num):
+    num = str(num)
+    if num == '$$$$':
+        return 4
+    if num == '$$$':
+        return 3
+    if num == '$$':
+        return 2
+    if num == '$':
+        return 1
+    if num == '$ - $$':
+        return 1.5
+    if num == '$$ - $$$':
+        return 2.5
+    if num == '$$$ - $$$$':
+        return 3.5
+    else:
+        return 0
+datanew['ratingAndPopularity'] = datanew['ratingAndPopularity'].apply(convert)
+datanew = datanew.join(datanew['openMeal'].str.replace(' ', '').str.get_dummies(sep=','))
+
+def parsecuisine(rd):
+    if not pd.isna(rd['cuisine']):
+        cuisine_list = rd['cuisine'].split(',')
+        for c in cuisine_list:
+            rd[c.strip().lower().replace(' ', '_')] = 1
+    return rd
+datanew = datanew.apply(parsecuisine, axis=1)
+
+def parseregion(rd):
+    if not pd.isna(rd['region']):
+        region_list = rd['region'].split(',')
+        for c in region_list:
+            rd[c.strip().lower().replace(' ', '_')] = 1
+    return rd
+datanew = datanew.apply(parseregion, axis=1)
+
+def parseopenmeal(rd):
+    if not pd.isna(rd['openMeal']):
+        region_list = rd['openMeal'].split(',')
+        for c in region_list:
+            rd[c.strip().lower().replace(' ', '_')] = 1
+    return rd
+datanew = datanew.apply(parseopenmeal, axis=1)
+
+datanew = datanew.drop('cuisine', axis='columns')
+datanew = datanew.drop('openMeal', axis='columns')
+datanew = datanew.drop('ranking', axis='columns')
+datanew = datanew.drop('region', axis='columns')
+
+datanew = datanew.fillna(0)
+
+datanew.drop([col for col, val in datanew.sum().iteritems() if val < 50], axis=1, inplace=True)
+
+# Pre-processing & cleaning
+#datanew = data.drop('Country' , axis='columns').drop('SN' , axis='columns')
+print(datanew.describe())
+
+# Standardize data
+x_std = StandardScaler().fit_transform(datanew)
+
+# Decide on K
+
+for k in range(2,10):
+    kmeans = KMeans(n_clusters=k).fit(x_std)
+    predit = kmeans.predict(x_std)
+    centers = kmeans.cluster_centers_
+    score = silhouette_score(x_std, predit, metric='euclidean')
+    print("n_clusters = "+str(k)+ " with score :" + str(score))
+
+# Run the kmeans
+k = 2
+kmeans = KMeans(n_clusters=k).fit(x_std)
+predit = kmeans.predict(x_std)
+centers = kmeans.cluster_centers_
+plt.scatter(x_std[:, 0], x_std[:, 1], c=predit, s=50, cmap='viridis')
+plt.show()
+
+# Interprete results
+
+'''  Data cleaning : remove some columns, like restaurant link, name, id and those with too small data row
+    Encoding some columns, like add cuisine, openMeal
+    Refer to screen plot, I will chose 40 components.
+    And when the n_cluster is 2, the score is highest
+    These data can be splited into 2 classification. '''
